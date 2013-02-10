@@ -407,7 +407,7 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
     """
     This is the global configuration for backupcopter. Some of these
     options are required and it is highly recommended that you read
-    through all options documentation before using backupcopter to
+    through all options' documentation before using backupcopter to
     avoid unwanted sideeffects.
 
     The options listed here are supported in addition to the Common
@@ -475,7 +475,7 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
         required=True,
         docstring="""The name of the usually logged on user on the
         machine. If the backup device is not always available (and you
-        set dest.device), this user will recieve an X11 notification
+        set dest.device), this user will receive an X11 notification
         and has 30 seconds of time to make the device available
         (e.g. turn on and plug in an external hard drive.""")
 
@@ -718,6 +718,9 @@ def print_config_options():
     wrapper.subsequent_indent = "    "
     wrapper.initial_indent = "    "
 
+    print("""backupcopter -- flexible rsync wrapper""")
+    print()
+    print()
     print("Configuration File Syntax")
     print("#########################")
     print("   A brief introduction")
