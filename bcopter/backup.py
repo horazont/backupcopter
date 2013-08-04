@@ -19,6 +19,9 @@ def initialize_btrfs(ctx):
         with device_context.DirectoryContext(ctx, sv_dest):
             for sv_root in ctx.base.source_btrfs_volumes:
                 sv_name = sv_root.replace("/", "__")
+                if os.path.isdir(sv_name):
+                    logger.info("deleting old subvolume at %s", sv_name)
+                    ctx.check_call(["btrfs", "subvolume", "delete", sv_name])
                 logger.info("creating snapshot of %s", sv_root)
                 ctx.check_call(["btrfs", "subvolume", "snapshot", "-r", sv_root, sv_name])
                 subvolumes[sv_root] = os.path.join(sv_dest, sv_name)
@@ -29,7 +32,10 @@ def initialize_btrfs(ctx):
 
 def finalize_btrfs(ctx, subvolumes):
     for sv_path in subvolumes.values():
-        ctx.check_call(["btrfs", "subvolume", "delete", sv_path])
+        try:
+            ctx.check_call(["btrfs", "subvolume", "delete", sv_path])
+        except subprocess.CalledProcessError:
+            logger.warn("could not delete subvolume: %s", sv_path)
 
 def substitute_btrfs_snapshot(subvolumes, source_path):
     longest_match = None
