@@ -93,6 +93,8 @@ class CryptoContext:
         self.mapped_device = os.path.join("/dev", "mapper", nodename)
 
     def __enter__(self):
+        if self.ctx.isdev(self.mapped_device):
+            return self
         args = ["luksOpen", self.devnode, self.nodename]
         if self.keyfile is not None:
             args.insert(0, "-d")
