@@ -85,7 +85,6 @@ def do_backup(ctx, interval):
     indicies = shift.interval_indicies(interval)
     indicies.sort()
     try:
-        del indicies[0]
         next_index = indicies.pop(0)[0]
     except (ValueError, IndexError):
         linkdest_dir = None
