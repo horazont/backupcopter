@@ -381,9 +381,9 @@ def raise_if_cryptsetup(instance, value, propobj):
     if instance.dest_cryptsetup:
         raise ValueError("required when using cryptsetup")
 
-def nomount(instance, value, propobj):
-    if not value and not instance.dest_device:
-        raise ValueError("nomount must be set to True if no device is given")
+def validate_mount(instance, value, propobj):
+    if value and not instance.dest_device:
+        raise ValueError("mount must be set to False if no device is given")
 
 def validate_intervals(instance, value, propobj):
     if not value:
@@ -501,13 +501,18 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
         the passphrase of the encrypted device. If you do not specify
         this and use cryptsetup, you'll have to type the password on
         the shell backupcopter runs on.""")
-    dest_nomount = config_property(
+    dest_mount = config_property(
         type=boolean,
-        default=False,
-        validator=nomount,
-        docstring="""If set to true, it is assumed that no mounting
+        default=True,
+        validator=validate_mount,
+        docstring="""If set to false, it is assumed that no mounting
         has to be done for the backup to start. This conflicts with
         dest.cryptsetup and dest.device.""")
+    dest_mount_options = config_property(
+        default=None,
+        docstring="""Options passed to mount via -o upon mounting the
+        backup target device."""
+        )
     dest_device = config_property(
         required=True,
         missingfunc=raise_if_cryptsetup,

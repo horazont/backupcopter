@@ -62,13 +62,20 @@ class DirectoryContext:
         return "chdir({!r})".format(self.chto)
 
 class MountContext:
-    def __init__(self, ctx, devnode, mountpoint):
+    def __init__(self, ctx, devnode, mountpoint, options=None):
         self.ctx = ctx
         self.devnode = devnode
         self.mountpoint = mountpoint
+        self.options = options
 
     def __enter__(self):
-        self.ctx.check_call(["mount", self.devnode, self.mountpoint])
+        if os.path.ismount(self.mountpoint):
+            return self
+        args = [self.devnode, self.mountpoint]
+        if self.options is not None:
+            args.insert(0, "-o")
+            args.insert(1, self.options)
+        self.ctx.check_call(["mount"] + args)
         return self
 
     def __exit__(self, *args):
@@ -152,7 +159,7 @@ class WaitContext:
 def create_target_device_context(ctx, waiting_callback=None):
     contexts = []
 
-    if not ctx.base.dest_nomount:
+    if ctx.base.dest_mount:
         dev = ctx.base.dest_device
 
         contexts.append(("waitfor", WaitContext(ctx, dev, waiting_callback=waiting_callback)))
@@ -165,7 +172,7 @@ def create_target_device_context(ctx, waiting_callback=None):
             contexts.append(("crypto", crypto))
             dev = crypto.mapped_device
 
-        contexts.append(("mount", MountContext(ctx, dev, ctx.base.dest_root)))
+        contexts.append(("mount", MountContext(ctx, dev, ctx.base.dest_root, ctx.base.dest_mount_options)))
 
     contexts.append(("cd", DirectoryContext(ctx, ctx.base.dest_root)))
     return ChainedContexts(*contexts)
