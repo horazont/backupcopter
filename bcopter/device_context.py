@@ -119,8 +119,7 @@ class SuspendContext:
     def __exit__(self, exc_type, exc_value, traceback):
         if exc_type is None:
             # only send to sleep if no exception was raised
-            # self.ctx.check_call(["hdparm", "-Y", self.devnode])
-            pass
+            self.ctx.check_call(["hdparm", "-Y", self.devnode])
 
     def __str__(self):
         return "suspend({} on success)".format(self.devnode)
