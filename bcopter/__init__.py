@@ -146,8 +146,14 @@ class Context(config.Config):
                            "-c", str(target.ionice_class),
                            "-n", str(target.ionice_level)]
             args = ionice_call + args
-        self.check_call(args)
-
+        try:
+            self.check_call(args)
+        except subprocess.CalledProcessError as err:
+            # ignore and only warn about partial transfer errors
+            if err.returncode in [23, 24]:
+                logging.warn("Partial transfer occured -- continuing with other targets")
+            else:
+                raise
 
     def warn_user(self, message):
         """
