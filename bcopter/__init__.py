@@ -153,11 +153,23 @@ class Context(config.Config):
             return False
         return stat.S_ISBLK(statinfo.st_mode)
 
+    def _construct_cp_al(self, source, dest):
+        return [self.base.cp_cmd, "-al", source, dest]
+
+    def _require_cp_al(self):
+        raise NotImplementedError("We don't support missing cp right now.")
+
     def cp_al(self, source, dest):
         if self.base.cp_cmd:
-            self.check_call([self.base.cp_cmd, "-al", source, dest])
+            self.check_call(self._construct_cp_al(source, dest))
         elif not self._dryrun:
-            raise NotImplementedError("We don't support missing cp right now.")
+            self._require_cp_al()
+
+    def cp_al_async(self, source, dest):
+        if self.base.cp_cmd:
+            return self.Popen(self._construct_cp_al(source, dest))
+        elif not self._dryrun:
+            self._require_cp_al()
 
     def wrap_ssh_command(self, target, command):
         """
@@ -333,13 +345,11 @@ def main():
     logging.debug("using context stack: %s", context_stack)
 
     with context_stack:
+        backup_interval = args.intervals[0]
         # process each intervall passed at the cli. Start with larger
         # intervals and do neccessary rotation operations if desired.
         for i, interval in enumerate(args.intervals):
-            shift_interval = conf.base.intervals.index(interval) > 0
             shift.do_shift(conf, interval)
-            if shift_interval:
-                shift.do_interval_shift(conf, interval, args.intervals[i+1])
-            else:
-                logging.info("backup engaged!")
-                backup.do_backup(conf, interval)
+        backup.do_backup(conf, backup_interval)
+
+        shift.clone_intervals(conf, backup_interval, args.intervals[1:])

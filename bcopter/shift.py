@@ -6,6 +6,7 @@ specific call.
 """
 import logging
 import os
+import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -76,3 +77,36 @@ def do_interval_shift(context, upper_interval, lower_interval):
         context.rename(lower_dirname, upper_dirname)
     except FileNotFoundError:
         logging.warn("cannot shift %s -- it does not exist!", lower_dirname)
+
+def clone_intervals(context, source_interval, dest_intervals):
+    if not dest_intervals:
+        return
+
+    logging.info("creating clones of %s to %s",
+                 source_interval,
+                 ", ".join(dest_intervals))
+
+    processes = []
+    srcname = interval_dirname(source_interval, 0)
+    for dest_interval in dest_intervals:
+        dirname = interval_dirname(dest_interval, 0)
+        logging.info("starting clone %s", dirname)
+        processes.append(
+            (context.cp_al_async(srcname, dirname), dirname))
+
+    while processes:
+        remove_idx = None
+        for i, (process, dirname) in enumerate(processes):
+            try:
+                returncode = process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                continue
+            else:
+                if returncode != 0:
+                    logging.warn("failed to clone backup to %s",
+                                 dirname)
+                remove_idx = i
+
+        if remove_idx is not None:
+            _, dirname = processes.pop(remove_idx)
+            logging.info("clone of %s is finished", dirname)
