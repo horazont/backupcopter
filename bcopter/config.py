@@ -555,7 +555,9 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
         validator=validate_intervals,
         docstring="""A list of backup intervals. These are names you
         can choose, which must be valid directory names and should not
-        contain spaces. Specify them like this: ["daily", "weekly"].""")
+        contain spaces. Specify them like this: ["daily", "weekly"].
+        See the `Backup model` section for more details on intervals.
+        """)
     intervals_shiftdepth = config_property(
         required=True,
         type=mapping(str, int),
@@ -563,10 +565,17 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
         docstring="""A mapping defining how many rounds a backup will
         rotate before it's either moved to the next interval level or
         deleted. Specify like this: {"daily": 7, "weekly": 4}. This
-        would allow for seven daily backups. The once each week, the
-        oldest daily backup could be moved to weekly-state and after
-        four weeks, the oldest weekly backup will be deleted."""
+        would allow for seven daily backups. See the `Backup model`
+        section for more details on intervals."""
         )
+    intervals_run_only_lowest = config_property(
+        type=boolean,
+        default=True,
+        docstring="""If set to true, no backups will be run except if
+        the lowest interval is specified among the backup intervals.
+        Otherwise, only shifting and cloning takes place. See the
+        `Backup model` section for more details on intervals.""")
+
 
     def __str__(self):
         return "base config"
@@ -779,6 +788,28 @@ def print_config_options():
     fillprint("""That configuration file contains one section for each
     host, the section name is just the hostname. The allowed options
     are described below in the section Host Options.""")
+
+    print()
+    print()
+    print("Backup model")
+    print("############")
+    print()
+    fillprint("""backupcopter works in the following way. You specify a
+    configuration and a set of intervals. Intervals are an abstraction
+    of the time intervals in which you make incremental backups.""")
+    print()
+    fillprint("""Each interval gains its own set of directories, named
+    and numbered by the interval name and the count of backups existing
+    with that interval. Upon creating a backup, the existing directories
+    of the affected interval are shifted up by one number. If too many
+    directories exist (i.e. more than set in the configuration as the
+    `shiftdepth` of that interval), the surplus directories are
+    deleted.""")
+    print()
+    fillprint("""If multiple intervals are to be backed up at once,
+    backupcopter will only make one actual backup and create a
+    hardlinked copy of that backup in the other intervals, to save I/O
+    and space and to create consistent backups.""")
 
     print()
     print()

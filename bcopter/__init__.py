@@ -350,6 +350,11 @@ def main():
         # intervals and do neccessary rotation operations if desired.
         for i, interval in enumerate(args.intervals):
             shift.do_shift(conf, interval)
-        backup.do_backup(conf, backup_interval)
+        if not conf.base.intervals_run_only_lowest or \
+                conf.base.intervals.index(backup_interval) == 0:
+            # either we allow all intervals to create a root backup,
+            # or the backup_interval must be the one with the lowest
+            # index
+            backup.do_backup(conf, backup_interval)
 
         shift.clone_intervals(conf, backup_interval, args.intervals[1:])
