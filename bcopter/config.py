@@ -377,7 +377,7 @@ def validate_hosts(instance, value, propobj):
         host.parent_config = instance
         host.validate_config(raise_on_error=True)
 
-def raise_if_cryptsetup(instance, value, propobj):
+def raise_if_cryptsetup(instance):
     if instance.dest_cryptsetup:
         raise ValueError("required when using cryptsetup")
 
@@ -399,7 +399,11 @@ def need_device(instance, value, propobj):
     if not instance.dest_device:
         raise ValueError("requires device")
 
-def raise_if_btrfs_volumes(instance, value, propobj):
+def false_if_no_device(instance, value, propobj):
+    if not instance.dest_device:
+        propobj.__set__(instance, "False")
+
+def raise_if_btrfs_volumes(instance):
     if instance.source_btrfs_volumes:
         raise ValueError("required if btrfs volumes are set")
 
@@ -523,7 +527,7 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
         /dev/disk/by-uuid).""")
     dest_device_suspend = config_property(
         type=boolean,
-        validator=need_device,
+        validator=false_if_no_device,
         docstring="""Send the hard disk to sleep using hdparm -Y after
         the backup has finished. This requires dest.device.""")
 
