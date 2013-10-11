@@ -298,6 +298,9 @@ def main():
         sys.exit(0)
 
     logging.basicConfig(level=logging.ERROR, format='{0}:%(levelname)-8s %(message)s'.format(os.path.basename(sys.argv[0])))
+    if args.dry_run:
+        args.verbosity = 3
+
     if args.verbosity >= 3:
         logging.getLogger().setLevel(logging.DEBUG)
     elif args.verbosity >= 2:
