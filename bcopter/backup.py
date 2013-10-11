@@ -102,8 +102,12 @@ def do_backup(ctx, interval):
             dest = os.path.join(target_dir, target.dest)
             if not os.path.isdir(dest):
                 os.makedirs(dest)
-            linkdest = os.path.abspath(os.path.join(linkdest_dir, target.dest))
-            if not ctx.isdir(linkdest):
+            if linkdest_dir is not None:
+                linkdest = os.path.abspath(
+                    os.path.join(linkdest_dir, target.dest))
+                if not ctx.isdir(linkdest):
+                    linkdest = None
+            else:
                 linkdest = None
             try:
                 with BackupTransaction(ctx, target, source, dest, linkdest) as transaction:
