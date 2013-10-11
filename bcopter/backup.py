@@ -94,25 +94,21 @@ def do_backup(ctx, interval):
     logger.info("initializing source btrfs subvolumes (if any)")
     subvolumes = initialize_btrfs(ctx)
     try:
-        ctx._dryrun = False
-        try:
-            for target in ctx.targets:
-                logger.info("backing up %s", target)
-                source = target.source_prefix + target.source
-                if target.local:
-                    source = substitute_btrfs_snapshot(subvolumes, source)
-                dest = os.path.join(target_dir, target.dest)
-                if not os.path.isdir(dest):
-                    os.makedirs(dest)
-                linkdest = os.path.abspath(os.path.join(linkdest_dir, target.dest))
-                if not ctx.isdir(linkdest):
-                    linkdest = None
-                try:
-                    with BackupTransaction(ctx, target, source, dest, linkdest) as transaction:
-                        transaction.execute()
-                except subprocess.CalledProcessError as err:
-                    logging.exception(err)
-        finally:
-            ctx._dryrun = False
+        for target in ctx.targets:
+            logger.info("backing up %s", target)
+            source = target.source_prefix + target.source
+            if target.local:
+                source = substitute_btrfs_snapshot(subvolumes, source)
+            dest = os.path.join(target_dir, target.dest)
+            if not os.path.isdir(dest):
+                os.makedirs(dest)
+            linkdest = os.path.abspath(os.path.join(linkdest_dir, target.dest))
+            if not ctx.isdir(linkdest):
+                linkdest = None
+            try:
+                with BackupTransaction(ctx, target, source, dest, linkdest) as transaction:
+                    transaction.execute()
+            except subprocess.CalledProcessError as err:
+                logging.exception(err)
     finally:
         finalize_btrfs(ctx, subvolumes)
