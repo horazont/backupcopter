@@ -15,6 +15,85 @@ DEFAULT_CONFIG_FILE = "/etc/backupcopter.conf"
 
 logger = logging.getLogger("main")
 
+class NullProcess:
+    stdin = None
+    stdout = None
+    stderr = None
+    pid = None
+    returncode = 0
+
+    def __init__(self, args, **kwargs):
+        super().__init__()
+
+    def poll(self):
+        return 0
+
+    def wait(self, timeout=None):
+        return 0
+
+    def send_signal(self, signal):
+        pass
+
+    def terminate(self):
+        pass
+
+    def kill(self):
+        pass
+
+class LoggedProcess:
+    logger = logging.getLogger("cmd")
+
+    @staticmethod
+    def _format_command(command):
+        s = command[0] + " "
+        s += " ".join(map(shlex.quote, command[1:]))
+        return s
+
+    @classmethod
+    def _raise_process_error(cls, args):
+        raise subprocess.CalledProcessError(
+            "`{}' returned with non-zero returncode.".format(
+                cls._format_command(args)))
+
+    @classmethod
+    def check_call(cls, dry_run, args, *,
+                   stdin=None, stdout=None, stderr=None, shell=False,
+                   timeout=None):
+        proc = cls(
+            dry_run, args,
+            stdin=stdin, stdout=stdout, stderr=stderr, shell=shell)
+        returncode = proc.wait(timeout=timeout)
+        if returncode != 0:
+            cls._raise_process_error(args)
+
+    @classmethod
+    def check_output(cls, dry_run, args, *,
+                     stdin=None, stderr=None, shell=False,
+                     universal_newlines=False, timeout=None):
+        if dry_run:
+            raise NotImplementedError("There is no sane implementation of check_output in dry-run mode.")
+        proc = cls(
+            dry_run, args,
+            stdout=subprocess.PIPE,
+            stdin=stdin, stderr=stderr, shell=shell,
+            universal_newlines=universal_newlines)
+        stdout, _ = proc.communicate(timeout=timeout)
+        if proc.returncode != 0:
+            cls._raise_process_error(args)
+        return stdout
+
+    def __new__(cls, dry_run, args, *further_args, **kwargs):
+        cls.logger.debug(
+            "executing: %s", cls._format_command(args))
+        if dry_run:
+            return NullProcess(args, *further_args, **kwargs)
+        else:
+            return subprocess.Popen(args, *further_args, **kwargs)
+
+    def __init__(self, dry_run, args, *further_args, **kwargs):
+        assert False
+
+
 class Context(config.Config):
     """
     This class maintains the configuration of the backup tool and
@@ -38,26 +117,16 @@ class Context(config.Config):
         logger.debug(self._format_command(command))
 
     def check_call(self, command, *args, **kwargs):
-        self._log_command(command)
-        if not self._dryrun:
-            subprocess.check_call(command, *args, **kwargs)
-        else:
-            print(self._format_command(command))
+        return LoggedProcess.check_call(
+            self._dryrun, command, *args, **kwargs)
 
     def check_output(self, command, *args, **kwargs):
-        self._log_command(command)
-        if not self._dryrun:
-            return subprocess.check_output(command, *args, **kwargs)
-        else:
-            raise NotImplementedError("There is no sane implementation of check_output in dry-run mode.")
-            print(self._format_command(command))
+        return LoggedProcess.check_output(
+            self._dryrun, command, *args, **kwargs)
 
     def Popen(self, command, *args, **kwargs):
-        self._log_command(command)
-        if not self._dryrun:
-            return subprocess.Popen(command, *args, **kwargs)
-        else:
-            raise NotImplementedError("There is no sane implementation of check_output in dry-run mode.")
+        return LoggedProcess(
+            self._dryrun, command, *args, **kwargs)
 
     def deltree(self, path):
         if self.base.rm_cmd:
