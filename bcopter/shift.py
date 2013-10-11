@@ -49,7 +49,7 @@ def do_shift(context, interval):
     indicies.sort(reverse=True)
     my_depth = context.base.intervals_shiftdepth[interval]
     for index, dirname in indicies:
-        if index >= my_depth-1:
+        if my_depth > 0 and index >= my_depth-1:
             logger.info("removing surplus folder: %s", dirname)
             context.deltree(dirname)
         else:
