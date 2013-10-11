@@ -306,7 +306,7 @@ def main():
         logging.getLogger().setLevel(logging.WARNING)
 
     conf = Context(args.dry_run)
-    errors = conf.load("./config.ini", raise_on_error=False)
+    errors = conf.load(args.config_file, raise_on_error=False)
     if errors:
         print("fatal configuration errors found:")
         for error in errors:
