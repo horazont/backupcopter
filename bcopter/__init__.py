@@ -270,9 +270,8 @@ def main():
     parser.add_argument(
         "-c", "--config-file",
         metavar="CONFIGFILE",
-        type=argparse.FileType("r"),
         help="Path to a configuration file for backupcopter. Defaults to {}".format(DEFAULT_CONFIG_FILE),
-        default=None
+        default="/etc/backupcopter.conf"
     )
     parser.add_argument(
         "-d", "--dry-run",
@@ -320,8 +319,21 @@ def main():
     elif args.verbosity >= 1:
         logging.getLogger().setLevel(logging.WARNING)
 
+    try:
+        args.config_file = open(args.config_file, "r")
+    except FileNotFoundError as err:
+        parser.print_help()
+        print()
+        sys.stdout.flush()
+        print("failed to open config: {}".format(err))
+        sys.stderr.flush()
+        sys.exit(1)
+
     conf = Context(args.dry_run)
-    errors = conf.load(args.config_file, raise_on_error=False)
+    try:
+        errors = conf.load(args.config_file, raise_on_error=False)
+    finally:
+        args.config_file.close()
     if errors:
         print("fatal configuration errors found:")
         for error in errors:
