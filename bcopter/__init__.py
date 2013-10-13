@@ -357,7 +357,7 @@ def main():
     logging.debug("using context stack: %s", context_stack)
 
     with context_stack:
-        backup_interval = args.intervals[0]
+        backup_interval = args.intervals[-1]
         # process each intervall passed at the cli. Start with larger
         # intervals and do neccessary rotation operations if desired.
         for i, interval in enumerate(args.intervals):
@@ -368,5 +368,7 @@ def main():
             # or the backup_interval must be the one with the lowest
             # index
             backup.do_backup(conf, backup_interval)
+        else:
+            logging.warn("no backup, %s is not the lowest interval", backup_interval)
 
-        shift.clone_intervals(conf, backup_interval, args.intervals[1:])
+        shift.clone_intervals(conf, backup_interval, args.intervals[:-1])
