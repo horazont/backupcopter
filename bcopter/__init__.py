@@ -50,10 +50,9 @@ class LoggedProcess:
         return s
 
     @classmethod
-    def _raise_process_error(cls, args):
+    def _raise_process_error(cls, returncode, args):
         raise subprocess.CalledProcessError(
-            "`{}' returned with non-zero returncode.".format(
-                cls._format_command(args)))
+            returncode, cls._format_command(args))
 
     @classmethod
     def check_call(cls, dry_run, args, *,
@@ -64,7 +63,7 @@ class LoggedProcess:
             stdin=stdin, stdout=stdout, stderr=stderr, shell=shell)
         returncode = proc.wait(timeout=timeout)
         if returncode != 0:
-            cls._raise_process_error(args)
+            cls._raise_process_error(returncode, args)
 
     @classmethod
     def check_output(cls, dry_run, args, *,
@@ -79,7 +78,7 @@ class LoggedProcess:
             universal_newlines=universal_newlines)
         stdout, _ = proc.communicate(timeout=timeout)
         if proc.returncode != 0:
-            cls._raise_process_error(args)
+            cls._raise_process_error(proc.returncode, args)
         return stdout
 
     def __new__(cls, dry_run, args, *further_args, **kwargs):
