@@ -94,6 +94,7 @@ class MountContext:
         self.devnode = devnode
         self.mountpoint = mountpoint
         self.options = options
+        self._mounted = False
 
     def __enter__(self):
         if os.path.ismount(self.mountpoint):
@@ -103,10 +104,12 @@ class MountContext:
             args.insert(0, "-o")
             args.insert(1, self.options)
         self.ctx.check_call(["mount"] + args)
+        self._mounted = True
         return self
 
     def __exit__(self, *args):
-        self.ctx.check_call(["umount", self.mountpoint])
+        if self._mounted:
+            self.ctx.check_call(["umount", self.mountpoint])
 
     def __str__(self):
         return "mount({} at {!r})".format(self.devnode, self.mountpoint)
@@ -131,6 +134,7 @@ class CryptoContext:
         self.nodename = nodename
         self.keyfile = keyfile
         self.mapped_device = os.path.join("/dev", "mapper", nodename)
+        self._opened = False
 
     def __enter__(self):
         if self.ctx.isdev(self.mapped_device):
@@ -140,10 +144,12 @@ class CryptoContext:
             args.insert(0, "-d")
             args.insert(1, self.keyfile)
         self.ctx.check_call(["cryptsetup"] + args)
+        self._opened = True
         return self
 
     def __exit__(self, *args):
-        self.ctx.check_call(["cryptsetup", "luksClose", self.nodename])
+        if self._opened:
+            self.ctx.check_call(["cryptsetup", "luksClose", self.nodename])
 
     def __str__(self):
         return "luks({} as {!r})".format(self.devnode, self.nodename)

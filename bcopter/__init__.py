@@ -189,7 +189,7 @@ class Context(config.Config):
             new_command.extend(command)
             return new_command
 
-    def rsync(self, target, source, dest, linkdest=None):
+    def rsync(self, target, source, dest, linkdest=None, additional_args=[]):
         """
         Call rsync for *target* to sync files from *source* to *dest*,
         optionally using *linkdest* as argument to `--link-dest` (see
@@ -219,6 +219,8 @@ class Context(config.Config):
                 ssh_call.append("-i"+target.ssh_identity)
             ssh_call = self.wrap_ssh_command(target, ssh_call)
             args.insert(1, " ".join(map(shlex.quote, ssh_call)))
+
+        args.extend(additional_args)
 
         args.insert(0, "rsync")
         if target.ionice_enable:

@@ -668,11 +668,13 @@ class Config:
             else:
                 target.parent_config = host
                 assert host.local == target.local
+        self.target_map[name] = target
         self.targets.append(target)
 
     def reset(self):
         self.base = BaseConfig()
         self.targets = []
+        self.target_map = {}
         self.hosts = dict()
         self._collected_errors = []
 
