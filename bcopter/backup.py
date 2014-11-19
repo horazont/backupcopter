@@ -1,9 +1,11 @@
+import contextlib
 import logging
 import os
 import subprocess
 
 from . import shift
 from . import device_context
+from . import command
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +13,7 @@ def initialize_btrfs(ctx):
     subvolumes = {}
     sv_dest = ctx.base.source_btrfs_snapshotdir
     if not sv_dest:
-        logger.info("no btrfs subvolumes configured")
+        logger.debug("no btrfs subvolumes configured")
         return subvolumes
     if not ctx.isdir(sv_dest):
         os.makedirs(sv_dest)
@@ -80,6 +82,66 @@ class BackupTransaction:
             if self.linkdest is not None:
                 self.ctx.cp_al(self.linkdest, self.dest)
 
+class CmdBackup(command.ConfigurableMountCommand):
+    def __init__(self, **kwargs):
+        super().__init__(umount_default=True, **kwargs)
+
+    def get_info(self):
+        return command.CommandInfo(
+            command="backup",
+            description="Run a backup"
+        )
+
+    def setup_parser(self, parser):
+        super().setup_parser(parser)
+        parser.add_argument(
+            "intervals",
+            metavar="INTERVAL",
+            nargs="+",
+            help="The set of backup intervals to run"
+        )
+
+        parser.epilog = \
+        """
+        This will make a backup of the smallest interval specified. If the
+        amount of backups in this interval is currently equal to the maximum
+        configured amount, the oldest backup from this interval is deleted
+        before the backup is started.
+
+        The larger intervals are handled by creating a hard-linked copy to the
+        backup of the smallest interval. This provides perfectly aligned backups
+        by specifying all intervals which currently apply.
+        """
+
+    def run(self, args, conf):
+        try:
+            args.intervals.sort(
+                key=conf.base.intervals.index,
+                reverse=True
+            )
+        except ValueError as err:
+            logger.error("Unknown interval specified: %s", err)
+            return 3
+
+        with device_context.DeviceContext(conf, args):
+            backup_interval = args.intervals.pop()
+            shift.do_shift(conf, backup_interval)
+            if     (not conf.base.intervals_run_only_lowest or
+                    conf.base.intervals.index(backup_interval) == 0):
+                # either we allow all intervals to create a root backup
+                # (intervals_run_only_lowest is False) or the lowest interval
+                # specified at CLI must be the lowest interval
+                # configured. otherwise, don’t run a backup.
+                do_backup(conf, backup_interval)
+            else:
+                logger.warn("Nothing to do (%s is not the lowest interval "
+                            "configured).", backup_interval)
+                args.intervals.append(backup_interval)
+
+            for other_interval in args.intervals:
+                shift.do_shift(conf, other_interval)
+            shift.clone_intervals(conf, backup_interval, args.intervals)
+
 def do_backup(ctx, interval):
     target_dir = shift.interval_dirname(interval, 0)
     indicies = shift.interval_indicies(interval)
@@ -91,7 +153,6 @@ def do_backup(ctx, interval):
     else:
         linkdest_dir = shift.interval_dirname(interval, next_index)
 
-    logger.info("initializing source btrfs subvolumes (if any)")
     subvolumes = initialize_btrfs(ctx)
     try:
         for target in ctx.targets:

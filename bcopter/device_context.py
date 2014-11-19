@@ -1,54 +1,10 @@
+import contextlib
 import logging
-import sys
 import os
+import sys
 import time
 
 logger = logging.getLogger(__name__)
-
-class ChainedContexts:
-    """
-    Chain several contexts together, managing rollback on error for
-    each one, even if the error happens while setting up nested
-    contexts.
-    """
-    def __init__(self, *contexts):
-        self._contexts = []
-        for name, ctx in contexts:
-            if name.startswith("_"):
-                raise ValueError("Invalid context name: {}".format(name))
-            setattr(self, name, ctx)
-            self._contexts.append(ctx)
-
-    def _rollback(self, exits, *args):
-        propagate = True
-        for i, method in reversed(list(enumerate(exits))):
-            try:
-                if not method(*args):
-                    exc_type = None
-                    exc_value = None
-                    traceback = None
-                    propagate = False
-            except Exception as err:
-                self._rollback(exits[:i], *sys.exc_info())
-                raise
-        return propagate
-
-    def __enter__(self):
-        self._exit_methods = [context.__exit__ for context in self._contexts]
-
-        for i, context in enumerate(self._contexts):
-            try:
-                context.__enter__()
-            except Exception as err:
-                self._rollback(self._exit_methods[:i], *sys.exc_info())
-                raise
-        return self
-
-    def __exit__(self, *args):
-        self._rollback(self._exit_methods, *args)
-
-    def __str__(self):
-        return "stack({})".format("\n".join(map(str, self._contexts)))
 
 class DirectoryContext:
     """
@@ -75,7 +31,18 @@ class DirectoryContext:
     def __str__(self):
         return "chdir({!r})".format(self.chto)
 
-class MountContext:
+class MountlikeContext:
+    def __init__(self, *, umount_if_mounted=True, force_umount=False, **kwargs):
+        super().__init__(**kwargs)
+        self.umount_if_mounted = umount_if_mounted
+        self.force_umount = force_umount
+        self._mounted = False
+
+    def __exit__(self, *exc_info):
+        if (self._mounted and self.umount_if_mounted) or self.force_umount:
+            self._umount(*exc_info)
+
+class MountContext(MountlikeContext):
     """
     Mount a given device node (*devnode*) at a given *mountpoint* with
     a given set of *options*.
@@ -89,12 +56,14 @@ class MountContext:
     ``umount``.
     """
 
-    def __init__(self, ctx, devnode, mountpoint, options=None):
+    def __init__(self, ctx, devnode, mountpoint,
+                 options=None,
+                 **kwargs):
+        super().__init__(**kwargs)
         self.ctx = ctx
         self.devnode = devnode
         self.mountpoint = mountpoint
         self.options = options
-        self._mounted = False
 
     def __enter__(self):
         if os.path.ismount(self.mountpoint):
@@ -107,14 +76,13 @@ class MountContext:
         self._mounted = True
         return self
 
-    def __exit__(self, *args):
-        if self._mounted:
-            self.ctx.check_call(["umount", self.mountpoint])
+    def _umount(self):
+        self.ctx.check_call(["umount", self.mountpoint])
 
     def __str__(self):
         return "mount({} at {!r})".format(self.devnode, self.mountpoint)
 
-class CryptoContext:
+class CryptoContext(MountlikeContext):
     """
     Opens a cryptsetup luks device for usage.
 
@@ -128,7 +96,8 @@ class CryptoContext:
     Upon leaving the context, the crypto container is closed again.
     """
 
-    def __init__(self, ctx, devnode, nodename, keyfile=None):
+    def __init__(self, ctx, devnode, nodename, keyfile=None, **kwargs):
+        super().__init__(**kwargs)
         self.ctx = ctx
         self.devnode = devnode
         self.nodename = nodename
@@ -144,12 +113,11 @@ class CryptoContext:
             args.insert(0, "-d")
             args.insert(1, self.keyfile)
         self.ctx.check_call(["cryptsetup"] + args)
-        self._opened = True
+        self._mounted = True
         return self
 
-    def __exit__(self, *args):
-        if self._opened:
-            self.ctx.check_call(["cryptsetup", "luksClose", self.nodename])
+    def _umount(self, *args):
+        self.ctx.check_call(["cryptsetup", "luksClose", self.nodename])
 
     def __str__(self):
         return "luks({} as {!r})".format(self.devnode, self.nodename)
@@ -226,27 +194,56 @@ class WaitContext:
     def __str__(self):
         return "wait-for({})".format(self.devnode)
 
-def create_target_device_context(ctx, waiting_callback=None):
+def create_target_device_context(ctx,
+                                 umount_if_mounted=True,
+                                 force_umount=False,
+                                 waiting_callback=None):
     """
-    Create and return a usable context using the configuration options
-    found in *ctx*.
+    Return an iterable of context manager, which can be added e.g. to a
+    :class:`contextlib.ExitStack`. When all contexts are entered successfully,
+    the current working directory is the root directory of the backup device.
     """
-    contexts = []
-
     if ctx.base.dest_mount:
         dev = ctx.base.dest_device
 
-        contexts.append(("waitfor", WaitContext(ctx, dev, waiting_callback=waiting_callback)))
+        yield WaitContext(ctx, dev, waiting_callback=waiting_callback)
 
-        if ctx.base.dest_device_suspend:
-            contexts.append(("suspend", SuspendContext(ctx, dev)))
+        if ctx.base.dest_device_suspend and umount_if_mounted:
+            yield SuspendContext(ctx, dev)
 
         if ctx.base.dest_cryptsetup:
-            crypto = CryptoContext(ctx, dev, ctx.base.dest_cryptsetup_name, keyfile=ctx.base.dest_cryptsetup_keyfile)
-            contexts.append(("crypto", crypto))
+            crypto = CryptoContext(
+                ctx, dev,
+                ctx.base.dest_cryptsetup_name,
+                keyfile=ctx.base.dest_cryptsetup_keyfile,
+                force_umount=force_umount,
+                umount_if_mounted=umount_if_mounted
+            )
+            yield crypto
             dev = crypto.mapped_device
 
-        contexts.append(("mount", MountContext(ctx, dev, ctx.base.dest_root, ctx.base.dest_mount_options)))
+        yield MountContext(
+            ctx, dev,
+            ctx.base.dest_root,
+            ctx.base.dest_mount_options,
+            force_umount=force_umount,
+            umount_if_mounted=umount_if_mounted)
 
-    contexts.append(("cd", DirectoryContext(ctx, ctx.base.dest_root)))
-    return ChainedContexts(*contexts)
+    yield DirectoryContext(ctx, ctx.base.dest_root)
+
+class DeviceContext(contextlib.ExitStack):
+    def __init__(self, ctx, args):
+        super().__init__()
+        self.ctx = ctx
+        self.args = args
+
+    def __enter__(self):
+        result = super().__enter__()
+        for part in create_target_device_context(
+                self.ctx,
+                umount_if_mounted=self.args.umount,
+                force_umount=self.args.force_umount,
+                waiting_callback=self.ctx.device_missing):
+            logger.debug("%s", part)
+            result.enter_context(part)
+        return result
