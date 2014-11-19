@@ -474,6 +474,13 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
     passed to rsync. Use ["foo", "bar"] to pass the arguments foo and
     bar to rsync."""
         )
+    rsync_args_remote = config_property(
+        type=strlist,
+        docstring="""Can be a list of string arguments which are also
+        passed to rsync, but only if the target is on a remote
+        host. They are appended to the already constructed argument
+        list. Use ["--bwlimit", "500"] to limit the bandwidth to 500
+        kByte/s.""")
 
     usertowarn = config_property(
         required=True,

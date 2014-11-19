@@ -219,6 +219,8 @@ class Context(config.Config):
                 ssh_call.append("-i"+target.ssh_identity)
             ssh_call = self.wrap_ssh_command(target, ssh_call)
             args.insert(1, " ".join(map(shlex.quote, ssh_call)))
+            if self.base.rsync_args_remote:
+                args.extend(self.base.rsync_args_remote)
 
         args.extend(additional_args)
 
@@ -235,6 +237,7 @@ class Context(config.Config):
             if err.returncode in [23, 24]:
                 logging.warn("Partial transfer occured -- continuing with other targets")
             else:
+                logging.warn("Transfer failed with returncode {}".format(err.returncode))
                 raise
 
     def warn_user(self, message):
