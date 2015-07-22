@@ -76,7 +76,7 @@ class MountContext(MountlikeContext):
         self._mounted = True
         return self
 
-    def _umount(self):
+    def _umount(self, *args):
         self.ctx.check_call(["umount", self.mountpoint])
 
     def __str__(self):
