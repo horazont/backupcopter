@@ -483,7 +483,8 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
         kByte/s.""")
 
     usertowarn = config_property(
-        required=True,
+        required=False,
+        default=None,
         docstring="""The name of the usually logged on user on the
         machine. If the backup device is not always available (and you
         set dest.device), this user will receive an X11 notification

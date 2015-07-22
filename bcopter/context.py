@@ -229,18 +229,28 @@ class Context(config.Config):
 
     def warn_user(self, message):
         """
-        Show an X11 notification with the given *message*. This should
-        be used sparingly and requires root access or will prompt for
-        a password.
+        If a user is given in the configuration, show an X11 notification with
+        the given *message*. This should be used sparingly and requires root
+        access or will prompt for a password.
+
+        If no user is given, wall and beep are used to get the attention of
+        potential users around the machine.
 
         It _is_ used by the waiting context to notify the user if the
         backup device is not present.
         """
-        new_env = dict(os.environ)
-        if not "DISPLAY" in new_env:
-            new_env["DISPLAY"] = ":0"
-        self.check_call(["su", self.base.usertowarn, "-c",
-                         "notify-send --urgency=critical --icon=dialog-warning-symbolic --expire-time=30000 \"Backup problem\" \"{}\"".format(message)])
+        if self.base.usertowarn:
+            new_env = dict(os.environ)
+            if not "DISPLAY" in new_env:
+                new_env["DISPLAY"] = ":0"
+                self.check_call(["su", self.base.usertowarn, "-c",
+                                 "notify-send"
+                                 " --urgency=critical"
+                                 " --icon=dialog-warning-symbolic"
+                                 " --expire-time=30000"
+                                 " \"Backup problem\" \"{}\"".format(message)])
+        else:
+            self.check_call(["wall", "Backup problem\n{}".format(message)])
 
     def device_missing(self, since, remaining):
         """
