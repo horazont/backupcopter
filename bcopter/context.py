@@ -217,6 +217,7 @@ class Context(config.Config):
                            "-c", str(target.ionice_class),
                            "-n", str(target.ionice_level)]
             args = ionice_call + args
+
         try:
             self.check_call(args)
         except subprocess.CalledProcessError as err:

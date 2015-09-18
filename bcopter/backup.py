@@ -73,7 +73,48 @@ class BackupTransaction:
         if self.linkdest is not None and not self.ctx.base.rsync_linkdest:
             logging.warn("no rsync --link-dest, I'm going to use cp -al for bootstrapping")
             self.ctx.cp_al(self.linkdest, self.dest)
-        self.ctx.rsync(self.target, self.source, self.dest, self.linkdest)
+
+        additional_args = []
+        if self.target.exclude_from_incremental:
+            for item in self.target.exclude_from_incremental:
+                additional_args.append("--exclude")
+                additional_args.append(item)
+
+        self.ctx.rsync(self.target, self.source, self.dest, self.linkdest,
+                       additional_args=additional_args)
+
+        if self.target.exclude_from_incremental:
+            non_incremental_args = ["--delete"]
+            non_incremental_dir = os.path.join("non-incremental",
+                                               self.target.dest)
+            for item in self.target.exclude_from_incremental:
+                path = item[1:]
+                dest = os.path.join(non_incremental_dir,
+                                    path)
+                parent = os.path.dirname(dest)
+                if not os.path.isdir(parent):
+                    try:
+                        os.makedirs(parent)
+                    except FileExistsError:
+                        # type has changed...?
+                        self.ctx.deltree(parent)
+                        os.makedirs(parent)
+                source = os.path.join(self.source, path)
+                if os.path.isdir(dest) != os.path.isdir(source):
+                    # type has changed
+                    self.ctx.deltree(dest)
+
+                if os.path.isdir(source):
+                    source += "/"
+                    dest += "/"
+
+                self.ctx.rsync(
+                    self.target,
+                    source,
+                    dest,
+                    linkdest=None,
+                    additional_args=non_incremental_args)
+
 
     def __exit__(self, *exc_info):
         if exc_info[0] is not None:

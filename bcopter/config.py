@@ -90,14 +90,14 @@ class ConfigMeta(type):
 class config_property:
     def __init__(self, default=None, docstring=None, inherit=True,
                  validator=None, required=False, type=None,
-                 missingfunc=None):
+                 missingfunc=None, beautifulname=None):
         self._finalized = False
         self._default = default
         self._missingfunc = missingfunc
         self._varname = None
         self.name = None
         self._docstring = docstring
-        self._beautiful_name = None
+        self._beautiful_name = beautifulname
         self._inherit = inherit
         self._validator = validator
         self._required = required
@@ -107,7 +107,8 @@ class config_property:
         assert not self._finalized
         self._varname = "_" + propname
         self.name = propname
-        self._beautiful_name = propname.replace("_", ".")
+        if self._beautiful_name is None:
+            self._beautiful_name = propname.replace("_", ".")
         return self._varname, self._default
 
     def _validate(self, instance):
@@ -185,6 +186,21 @@ def strlist(value):
         return strlist(value)
     else:
         return list(map(str, value))
+
+def excludepathlist(value):
+    import ast
+    if isinstance(value, str):
+        value = ast.literal_eval(value)
+        if isinstance(value, str) or isinstance(value, dict) or isinstance(value, set):
+            raise ValueError("not a valid list: {!r}".format(value))
+        return excludepathlist(value)
+    else:
+        result = list(map(str, value))
+        for item in result:
+            if not item.startswith("/"):
+                raise ValueError("all paths in excludepathlist must "
+                                 "start with '/'")
+        return result
 
 def mapping(fromtype, totype):
     def mapping(value):
@@ -620,12 +636,20 @@ class BackupTarget(HostConfig, metaclass=ConfigMeta):
         docstring="""The relative path at which to store the
         backup. Usually, you'll want to use something like
         host/path/on/host.""")
+    exclude_from_incremental = config_property(
+        type=excludepathlist,
+        beautifulname="exclude_from_incremental",
+        docstring="""A list of path names as strings which are excluded from
+        incremental backup. The paths are saved individually in a separate
+        directory in the destination directory and excluded from the normal
+        backup using an rsync --exclude rule.""")
     host = config_property(
         required=True,
         missingfunc=host_from_section_name,
         docstring="""A name from the hosts config file (see [base]
         hosts). If set, the options given for that host will be inherited
         for this backup.""")
+
 
     def __str__(self):
         return "target \"{}\"".format(self.name)
@@ -667,7 +691,7 @@ class Config:
             try:
                 host = self.hosts[target.host]
             except KeyError:
-                self._collected_errors.append(KeyError("Unknown host: {} (did you forget specifiying hosts in [base]?)".format(host)))
+                self._collected_errors.append(KeyError("Unknown host: {} (did you forget specifiying hosts in [base]?)".format(target.host)))
             else:
                 target.parent_config = host
                 assert host.local == target.local
