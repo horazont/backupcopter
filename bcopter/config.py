@@ -276,16 +276,16 @@ class CommonConfig(metaclass=ConfigMeta):
     ssh_port = config_property(
         type=integer,
         docstring="""An integer tcp port number to pass to
-    ssh. Omitting leaves it to ssh's defaults (which may include
-    reading .ssh/config)""")
+        ssh. Omitting leaves it to ssh's defaults (which may include
+        reading .ssh/config)""")
     #ssh_user = config_property(
     #    validator=require_remote)
     ssh_identity = config_property(
         type=mk_absolute_path,
         validator=file_access(os.R_OK),
         docstring="""Path to the private key to use to connect using
-    ssh. If the key requires a passphrase, it will be prompted for on
-    the terminal.""")
+        ssh. If the key requires a passphrase, it will be prompted for on
+        the terminal.""")
 
     trickle_upstream_limit = config_property(
         type=integer,
@@ -339,14 +339,14 @@ class HostConfig(CommonConfig, metaclass=ConfigMeta):
         required=True,
         type=boolean,
         docstring="""Whether this is a local host or a remote
-    host. For non-local hosts, btrfs snapshots cannot be used and it
-    is dangerous to mislabel the localness of hosts if btrfs is used!""")
+        host. For non-local hosts, btrfs snapshots cannot be used and it
+        is dangerous to mislabel the localness of hosts if btrfs is used!""")
     source_prefix = config_property(
         validator=require_remote,
         default="",
         docstring="""Prefix to add to the source path of a backup
-    target. Usually, you'll want to write something like user@remote:
-    (including the trailing colon!) here for remote hosts.""")
+        target. Usually, you'll want to write something like user@remote:
+        (including the trailing colon!) here for remote hosts.""")
 
 def load_hosts(value):
     parser = configparser.ConfigParser()
@@ -423,8 +423,8 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
         type=load_hosts,
         validator=validate_hosts,
         docstring="""Specify another configuration file here which
-    contains host information. Hosts can be used to group together
-    options for multiple targets."""
+        contains host information. Hosts can be used to group together
+        options for multiple targets."""
         )
     ssh_cmd = config_property(
         validator=file_access(os.X_OK),
@@ -434,7 +434,7 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
     trickle_cmd = config_property(
         validator=file_access(os.X_OK),
         docstring="""The path to the trickle application. It can be used to
-    rate-limit ssh inside rsync."""
+        rate-limit ssh inside rsync."""
         )
     ionice_cmd = config_property(
         validator=file_access(os.X_OK),
@@ -444,25 +444,24 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
     rm_cmd = config_property(
         validator=file_access(os.X_OK),
         docstring="""Path to the rm binary. If omitted, we'll use our
-    own rm-rf-implementation."""
+        own rm-rf-implementation."""
         )
     cp_cmd = config_property(
         validator=file_access(os.X_OK),
         docstring="""Path to a cp implementation which supports
-    archive and hardlink modes (GNU cp does). If omitted, rollback
-    won't work properly and backup won't work at all if rsync does not
-    support --link-dest."""
-        )
+        archive and hardlink modes (GNU cp does). If omitted, rollback
+        won't work properly and backup won't work at all if rsync does not
+        support --link-dest.""")
     rsync_cmd = config_property(
         required=True,
         validator=file_access(os.X_OK),
-        docstring="""Path to the rsync binary."""
-        )
+        docstring="""Path to the rsync binary.""")
     rsync_linkdest = config_property(
         type=boolean,
         default=True,
         docstring="""Set this to False if your rsync does not support
-    --link-dest. See the documentation of cp.cmd for possible implications!""")
+        --link-dest. See the documentation of cp.cmd for possible
+        implications!""")
     rsync_onefs = config_property(
         type=boolean,
         default=False,
@@ -471,9 +470,8 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
     rsync_args = config_property(
         type=strlist,
         docstring="""Can be a list of string arguments which are also
-    passed to rsync. Use ["foo", "bar"] to pass the arguments foo and
-    bar to rsync."""
-        )
+        passed to rsync. Use ["foo", "bar"] to pass the arguments foo and
+        bar to rsync.""")
     rsync_args_remote = config_property(
         type=strlist,
         docstring="""Can be a list of string arguments which are also
@@ -523,8 +521,7 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
     dest_mount_options = config_property(
         default=None,
         docstring="""Options passed to mount via -o upon mounting the
-        backup target device."""
-        )
+        backup target device.""")
     dest_device = config_property(
         required=True,
         missingfunc=raise_if_cryptsetup,
@@ -564,8 +561,7 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
         docstring="""A list of backup intervals. These are names you
         can choose, which must be valid directory names and should not
         contain spaces. Specify them like this: ["daily", "weekly"].
-        See the `Backup model` section for more details on intervals.
-        """)
+        See the `Backup model` section for more details on intervals.""")
     intervals_shiftdepth = config_property(
         required=True,
         type=mapping(str, int),
@@ -574,8 +570,7 @@ class BaseConfig(CommonConfig, metaclass=ConfigMeta):
         rotate before it's either moved to the next interval level or
         deleted. Specify like this: {"daily": 7, "weekly": 4}. This
         would allow for seven daily backups. See the `Backup model`
-        section for more details on intervals."""
-        )
+        section for more details on intervals.""")
     intervals_run_only_lowest = config_property(
         type=boolean,
         default=True,
@@ -616,21 +611,21 @@ class BackupTarget(HostConfig, metaclass=ConfigMeta):
         missingfunc=source_from_section_name,
         validator=source_path,
         docstring="""The absolute source path from which to backup. If
-    you're doing remote backups, use source.prefix to specify the
-    hostname (read the docs of source.prefix for more information).""")
+        you're doing remote backups, use source.prefix to specify the
+        hostname (read the docs of source.prefix for more information).""")
     dest = config_property(
         required=True,
         missingfunc=dest_from_section_name,
         validator=dest_path,
         docstring="""The relative path at which to store the
-    backup. Usually, you'll want to use something like
-    host/path/on/host.""")
+        backup. Usually, you'll want to use something like
+        host/path/on/host.""")
     host = config_property(
         required=True,
         missingfunc=host_from_section_name,
         docstring="""A name from the hosts config file (see [base]
-    hosts). If set, the options given for that host will be inherited
-    for this backup.""")
+        hosts). If set, the options given for that host will be inherited
+        for this backup.""")
 
     def __str__(self):
         return "target \"{}\"".format(self.name)
